@@ -169,6 +169,15 @@ body {
 .stat-card.work  .value { color:#5c7a5e; }
 .stat-card.slack .value { color:#c4875a; }
 .stat-card.lunch-stat .value { color:#9a9e9b; }
+.stat-note { font-size:10px; margin-top:3px; letter-spacing:.4px; min-height:13px; }
+.stat-note.paused { color:#b0c6b1; }
+.stat-note.live   { color:#9aab9e; display:flex; align-items:center; gap:4px; }
+.stat-dot { width:5px; height:5px; border-radius:50%; background:#7a9b7c; flex-shrink:0;
+  animation:dotPulse 1.4s ease-in-out infinite; }
+@keyframes dotPulse {
+  0%,100% { opacity:.4; transform:scale(.85); }
+  50%      { opacity:1;  transform:scale(1.15); }
+}
 
 /* ── 任务历史 ── */
 .history-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
@@ -778,6 +787,7 @@ body {
       <div class="stat-card slack">
         <div class="label">摸鱼时间</div>
         <div class="value" id="totalSlack">00:00:00</div>
+        <div class="stat-note" id="slackNote"></div>
       </div>
       <div class="stat-card lunch-stat">
         <div class="label">午休时间</div>
@@ -1252,6 +1262,20 @@ function computeStats() {
   document.getElementById('totalWork').textContent=fmtDuration(workMs);
   document.getElementById('totalSlack').textContent=fmtDuration(slackMs);
   document.getElementById('totalLunch').textContent=fmtDuration(lunchMs);
+  const note = document.getElementById('slackNote');
+  if (note) {
+    const hasActiveWork = tasks.some(t=>t.end===null && (t.type==='work'||t.type==='lunch'));
+    if (hasActiveWork) {
+      note.className = 'stat-note paused';
+      note.textContent = '⏸ 工作中暂停';
+    } else if (clockInTime) {
+      note.className = 'stat-note live';
+      note.innerHTML = '<span class="stat-dot"></span>实时累计';
+    } else {
+      note.className = 'stat-note';
+      note.textContent = '';
+    }
+  }
   renderSlackIndex(workMs,lunchMs,slackMs);
 }
 
