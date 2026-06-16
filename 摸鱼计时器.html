@@ -1091,16 +1091,17 @@ function mergeWorkMs(taskArr, refNow) {
 }
 
 function calcDay(dayTasks, clockIn, refNow) {
-  // 工作时长：合并 work 区间（并行不重复计算）
   const workMs = mergeWorkMs(dayTasks, refNow);
-  // 午休时长：仅 lunch 类型
-  let lunchMs = 0;
-  dayTasks.filter(t=>t.type==='lunch').forEach(t=>{
-    lunchMs += Math.max(0,(t.end!==null?t.end:refNow)-t.start);
+  let lunchMs = 0, explicitSlackMs = 0;
+  dayTasks.forEach(t => {
+    const dur = Math.max(0, (t.end !== null ? t.end : refNow) - t.start);
+    if (t.type === 'lunch') lunchMs += dur;
+    if (t.type === 'slack') explicitSlackMs += dur;
   });
-  const elapsed = Math.max(0, refNow-clockIn);
-  // 摸鱼时间 = 总经过时间 - 工作 - 午休（包含显式摸鱼任务 + 未记录的空白）
-  return { workMs, lunchMs, slackMs: Math.max(0, elapsed-workMs-lunchMs) };
+  const elapsed = Math.max(0, refNow - clockIn);
+  // 显式摸鱼任务单独计算，不被 workMs 挤占；空闲时间也算摸鱼
+  const idleMs = Math.max(0, elapsed - workMs - lunchMs - explicitSlackMs);
+  return { workMs, lunchMs, slackMs: explicitSlackMs + idleMs };
 }
 
 // ════════════════════════════════════════
