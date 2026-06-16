@@ -428,6 +428,20 @@ body {
 }
 .tl-empty { font-size:12px; color:#c4c9bf; text-align:center; padding:10px 0; font-style:italic; }
 
+/* ── 时间轴悬浮提示 ── */
+.tl-tooltip {
+  position:fixed; pointer-events:none; z-index:250;
+  background:#4a4f45; color:#f2f3ee;
+  font-size:12px; line-height:1.7; padding:8px 13px;
+  border-radius:9px; white-space:nowrap;
+  box-shadow:0 4px 16px rgba(40,55,40,.22);
+  opacity:0; transition:opacity .12s; font-family:inherit;
+}
+.tl-tooltip.show { opacity:1; }
+.tt-name { font-weight:500; }
+.tt-time { color:#b0c6b1; font-variant-numeric:tabular-nums; font-size:11px; }
+.tt-dur  { color:#9aab9e;  font-variant-numeric:tabular-nums; font-size:11px; }
+
 /* ── FAB ── */
 .fab {
   position:fixed; bottom:28px; right:22px; width:46px; height:46px;
@@ -950,6 +964,11 @@ body {
   <span class="fab-badge" id="fabBadge" style="display:none"></span>
 </button>
 
+<div class="tl-tooltip" id="tlTooltip">
+  <div class="tt-name" id="ttName"></div>
+  <div class="tt-time" id="ttTime"></div>
+  <div class="tt-dur"  id="ttDur"></div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1905,7 +1924,9 @@ function renderTimeline() {
       bar.className = 'tl-bar type-' + t.type;
       bar.style.left  = left + '%';
       bar.style.width = width + '%';
-      bar.title = label + '  ' + fmtHM(t.start) + ' → ' + fmtHM(tEnd) + '  ' + fmtDuration(tEnd - t.start);
+      bar.addEventListener('mouseenter', e => showTlTip(e, label, t.start, tEnd));
+      bar.addEventListener('mousemove',  e => moveTlTip(e));
+      bar.addEventListener('mouseleave', hideTlTip);
       laneEl.appendChild(bar);
     });
     container.appendChild(laneEl);
@@ -1925,6 +1946,27 @@ function _tlAxis(start, end) {
   document.getElementById('tlStart').textContent = fmtHM(start);
   document.getElementById('tlMid').textContent   = fmtHM(start + (end - start) / 2);
   document.getElementById('tlEnd').textContent   = fmtHM(end);
+}
+
+// ════════════════════════════════════════
+// 时间轴悬浮提示
+// ════════════════════════════════════════
+function showTlTip(e, name, start, end) {
+  document.getElementById('ttName').textContent = name;
+  document.getElementById('ttTime').textContent = fmtHM(start) + ' → ' + fmtHM(end);
+  document.getElementById('ttDur').textContent  = fmtDuration(end - start);
+  document.getElementById('tlTooltip').classList.add('show');
+  moveTlTip(e);
+}
+function moveTlTip(e) {
+  const tt = document.getElementById('tlTooltip');
+  const x = e.clientX + 14;
+  const y = e.clientY - 56;
+  tt.style.left = Math.min(x, window.innerWidth  - tt.offsetWidth  - 10) + 'px';
+  tt.style.top  = Math.max(8, y) + 'px';
+}
+function hideTlTip() {
+  document.getElementById('tlTooltip').classList.remove('show');
 }
 
 // ════════════════════════════════════════
