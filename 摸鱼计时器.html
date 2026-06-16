@@ -492,6 +492,46 @@ body {
 }
 .btn-history-toggle:hover { color:#7a9b7c; border-color:#b0c6b1; }
 
+/* ── 摸鱼指数 ── */
+.slack-index-block {
+  background:#f2f3ee; border:1px solid #d3d9d0; border-radius:12px;
+  padding:14px 16px; box-shadow:0 2px 8px rgba(90,110,90,.05);
+  display:flex; align-items:center; gap:16px;
+}
+.si-left { flex:1; min-width:0; }
+.si-label { font-size:10px; color:#8c9189; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+.si-value { font-size:24px; font-weight:300; font-variant-numeric:tabular-nums; transition:color .6s; }
+.si-rating { font-size:12px; color:#adb2a8; margin-top:2px; min-height:16px; }
+.si-bar-wrap { width:72px; height:6px; background:#e0e3dc; border-radius:3px; overflow:hidden; flex-shrink:0; }
+.si-bar { height:100%; border-radius:3px; transition:width 1s linear,background .6s; }
+.cal-slack-label { font-size:9px; font-variant-numeric:tabular-nums; }
+
+/* ── 周报弹窗 ── */
+.report-modal { width:500px; max-width:calc(100vw - 32px); }
+.report-week-sel { display:flex; gap:6px; margin-bottom:14px; }
+.rws-btn {
+  background:#edeee8; border:1px solid #d3d9d0; border-radius:8px;
+  padding:6px 16px; font-size:12px; color:#8c9189; cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s; font-family:inherit;
+}
+.rws-btn:hover { background:#e0e3dc; }
+.rws-btn.active { background:#7a9b7c; color:#f2f3ee; border-color:#7a9b7c; }
+.report-textarea {
+  width:100%; height:270px; background:#edeee8; border:1px solid #c8cec4;
+  border-radius:9px; color:#4a4f45; font-size:13px; padding:12px 14px;
+  outline:none; resize:none; font-family:inherit; line-height:1.85;
+  transition:border-color .15s;
+}
+.report-textarea:focus { border-color:#7a9b7c; }
+.report-footer { display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:12px; }
+.report-hint { font-size:11px; color:#adb2a8; flex:1; }
+.btn-copy-report {
+  background:#7a9b7c; border:none; color:#f5f6f2; border-radius:8px;
+  padding:9px 22px; font-size:13px; font-weight:500; cursor:pointer;
+  font-family:inherit; transition:background .15s;
+}
+.btn-copy-report:hover { background:#5c7a5e; }
+
 /* ── 摸鱼成就 ── */
 .fish-burst {
   position:fixed; pointer-events:none; z-index:400;
@@ -731,6 +771,16 @@ body {
       </div>
     </div>
 
+    <!-- 摸鱼指数 -->
+    <div class="slack-index-block">
+      <div class="si-left">
+        <div class="si-label">今日摸鱼指数</div>
+        <div class="si-value" id="siValue">--%</div>
+        <div class="si-rating" id="siRating"></div>
+      </div>
+      <div class="si-bar-wrap"><div class="si-bar" id="siBar" style="width:0%"></div></div>
+    </div>
+
     <div class="timeline-block">
       <div class="timeline-label">时间轴</div>
       <div class="tl-container" id="tlContainer">
@@ -749,6 +799,7 @@ body {
         <span class="history-title">今日记录</span>
         <div class="history-actions">
           <button class="btn-small" onclick="openRetroModal()">补打卡</button>
+          <button class="btn-small" onclick="openWeekReportModal()">周报</button>
           <button class="btn-small" onclick="exportDay(todayKey())">导出</button>
           <button class="btn-small" onclick="exportJSON()">备份</button>
           <button class="btn-small" onclick="importJSON()">恢复</button>
@@ -866,6 +917,23 @@ body {
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeHistClockInModal()">取消</button>
       <button class="btn-confirm" onclick="confirmHistClockIn()">打卡</button>
+    </div>
+  </div>
+</div>
+
+<!-- 周报弹窗 -->
+<div class="modal-overlay" id="weekReportOverlay">
+  <div class="modal report-modal">
+    <h3>生成周报</h3>
+    <div class="report-week-sel">
+      <button class="rws-btn active" id="rwsThis" onclick="selectReportWeek(0)">本周</button>
+      <button class="rws-btn"        id="rwsLast" onclick="selectReportWeek(-1)">上周</button>
+    </div>
+    <textarea class="report-textarea" id="reportTextarea" readonly></textarea>
+    <div class="report-footer">
+      <span class="report-hint" id="reportHint"></span>
+      <button class="btn-cancel" onclick="closeWeekReportModal()">关闭</button>
+      <button class="btn-copy-report" onclick="copyWeekReport()">复制</button>
     </div>
   </div>
 </div>
@@ -1165,6 +1233,7 @@ function computeStats() {
   document.getElementById('totalWork').textContent=fmtDuration(workMs);
   document.getElementById('totalSlack').textContent=fmtDuration(slackMs);
   document.getElementById('totalLunch').textContent=fmtDuration(lunchMs);
+  renderSlackIndex(workMs,lunchMs,slackMs);
 }
 
 // ════════════════════════════════════════
@@ -1468,7 +1537,16 @@ function renderCal(){
       fill.style.width=dd?Math.min(100,workMs/WORK_MS*100)+'%':'0%';
       fill.style.background=workColor(workMs);
       bar.appendChild(fill);cell.appendChild(bar);
-      if(dd&&workMs>0){const lbl=document.createElement('div');lbl.className='cal-work-label';lbl.textContent=fmtHhMm(workMs);cell.appendChild(lbl);}
+      if(dd&&workMs>0){
+        const lbl=document.createElement('div');lbl.className='cal-work-label';lbl.textContent=fmtHhMm(workMs);cell.appendChild(lbl);
+        const total=workMs+slackMs+(calcDay(dd.tasks,dd.clockIn,key===todayK?Date.now():dd.clockIn+WORK_MS).lunchMs);
+        if(slackMs>0&&total>0){
+          const pct=Math.round(slackMs/total*100);
+          const si=document.createElement('div');si.className='cal-slack-label';
+          si.textContent='摸'+pct+'%';si.style.color=getSlackRating(pct).color;
+          cell.appendChild(si);
+        }
+      }
     }
     grid.appendChild(cell);
   }
@@ -2428,6 +2506,127 @@ function showConfetti() {
     requestAnimationFrame(loop);
   })();
 }
+
+// ════════════════════════════════════════
+// 摸鱼指数
+// ════════════════════════════════════════
+function getSlackRating(pct) {
+  if (pct <  5) return { label:'今日清醒 🧠',   color:'#7a9b7c' };
+  if (pct < 15) return { label:'认真社畜 💼',   color:'#9aab9e' };
+  if (pct < 30) return { label:'正常发挥 😌',   color:'#b8a45c' };
+  if (pct < 50) return { label:'资深社畜 😮‍💨', color:'#c4875a' };
+  if (pct < 70) return { label:'摸鱼达人 🐟',   color:'#b07c72' };
+  return              { label:'摸鱼传奇 🐋',   color:'#9a7898' };
+}
+
+function renderSlackIndex(workMs, lunchMs, slackMs) {
+  const valEl    = document.getElementById('siValue');
+  const ratingEl = document.getElementById('siRating');
+  const barEl    = document.getElementById('siBar');
+  if (!valEl) return;
+  const total = (workMs||0) + (lunchMs||0) + (slackMs||0);
+  if (!clockInTime || total < 60000) {
+    valEl.textContent = '--%'; valEl.style.color = '';
+    ratingEl.textContent = '';
+    if (barEl) barEl.style.width = '0%';
+    return;
+  }
+  const pct = Math.round((slackMs||0) / total * 100);
+  const r   = getSlackRating(pct);
+  valEl.textContent   = pct + '%';
+  valEl.style.color   = r.color;
+  ratingEl.textContent = r.label;
+  if (barEl) { barEl.style.width = Math.min(100,pct)+'%'; barEl.style.background = r.color; }
+}
+
+// ════════════════════════════════════════
+// 周报生成
+// ════════════════════════════════════════
+let reportWeekOffset = 0;
+
+function getWeekRange(offset) {
+  const now = new Date();
+  const dow = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
+  monday.setHours(0,0,0,0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { monday, sunday };
+}
+
+function generateWeeklyReport(offset) {
+  const { monday } = getWeekRange(offset);
+  const DAY_NAMES = ['周日','周一','周二','周三','周四','周五','周六'];
+  let totalWorkMs = 0, totalDays = 0, totalTaskCount = 0;
+  const dayLines = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue; // 跳过周末
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const rec = history[key];
+    const dateLabel = DAY_NAMES[dow]+'（'+(d.getMonth()+1)+'/'+ d.getDate()+'）';
+
+    if (!rec || !rec.clockIn) { dayLines.push('· '+dateLabel+'：（无记录）'); continue; }
+    if (rec.vacation)         { dayLines.push('· '+dateLabel+'：休假'); continue; }
+
+    const ref = key===todayKey() ? Date.now() : (rec.clockOut||rec.clockIn+WORK_MS);
+    const { workMs } = calcDay(rec.tasks, rec.clockIn, ref);
+    totalWorkMs += workMs; totalDays++;
+
+    const names = [...new Set(
+      rec.tasks.filter(t=>t.type==='work'&&t.end!==null&&t.name&&t.name!=='工作任务').map(t=>t.name)
+    )];
+    totalTaskCount += names.length;
+    dayLines.push('· '+dateLabel+'：'+(names.length ? names.join('、') : '（无具体任务记录）'));
+  }
+
+  const { monday: mon, sunday: sun } = getWeekRange(offset);
+  const fmt = d => d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+
+  return [
+    '【本周工作总结】',
+    '时间：'+fmt(mon)+' - '+fmt(sun),
+    '',
+    '一、工作完成情况',
+    ...dayLines,
+    '',
+    '二、本周数据',
+    '累计在岗 '+totalDays+' 天 · 工作时长 '+fmtHhMm(totalWorkMs)+' · 完成任务 '+totalTaskCount+' 项',
+    '',
+    '三、下周计划',
+    '（请补充）',
+  ].join('\n');
+}
+
+function selectReportWeek(offset) {
+  reportWeekOffset = offset;
+  document.getElementById('rwsThis').className = 'rws-btn'+(offset===0?' active':'');
+  document.getElementById('rwsLast').className = 'rws-btn'+(offset===-1?' active':'');
+  document.getElementById('reportTextarea').value = generateWeeklyReport(offset);
+  const { monday:mon, sunday:sun } = getWeekRange(offset);
+  const fmt = d => (d.getMonth()+1)+'月'+d.getDate()+'日';
+  document.getElementById('reportHint').textContent = fmt(mon)+' - '+fmt(sun);
+}
+
+function openWeekReportModal() {
+  selectReportWeek(0);
+  document.getElementById('weekReportOverlay').classList.add('show');
+}
+function closeWeekReportModal() {
+  document.getElementById('weekReportOverlay').classList.remove('show');
+}
+function copyWeekReport() {
+  const text = document.getElementById('reportTextarea').value;
+  navigator.clipboard.writeText(text)
+    .then(()=>showToast('周报已复制 ✓'))
+    .catch(()=>showToast('请手动选中文字复制'));
+}
+document.getElementById('weekReportOverlay').addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeWeekReportModal();
+});
 
 // ════════════════════════════════════════
 // 每日清单
