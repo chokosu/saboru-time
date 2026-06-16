@@ -492,6 +492,36 @@ body {
 }
 .btn-history-toggle:hover { color:#7a9b7c; border-color:#b0c6b1; }
 
+/* ── 摸鱼成就 ── */
+.fish-burst {
+  position:fixed; pointer-events:none; z-index:400;
+  font-size:20px; line-height:1;
+  animation:fishBurstAnim .9s ease forwards;
+}
+@keyframes fishBurstAnim {
+  0%   { opacity:1; transform:translate(0,0) scale(1.2) rotate(0deg); }
+  100% { opacity:0; transform:translate(var(--dx),var(--dy)) scale(.5) rotate(var(--dr)); }
+}
+.achievement-card {
+  position:fixed; top:50%; left:50%;
+  transform:translate(-50%,-50%) scale(.85);
+  background:#f2f3ee; border:1px solid #d3d9d0; border-radius:20px;
+  padding:22px 36px 18px; text-align:center; z-index:501;
+  box-shadow:0 16px 48px rgba(60,75,60,.22); pointer-events:none;
+  animation:achieveIn .25s ease forwards, achieveOut .35s ease 1.9s forwards;
+}
+@keyframes achieveIn {
+  from { opacity:0; transform:translate(-50%,-50%) scale(.85); }
+  to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+@keyframes achieveOut {
+  from { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  to   { opacity:0; transform:translate(-50%,-58%) scale(.93); }
+}
+.ach-icon  { font-size:38px; margin-bottom:8px; }
+.ach-title { font-size:15px; font-weight:500; color:#4a4f45; letter-spacing:1px; }
+.ach-sub   { font-size:12px; color:#8c9189; margin-top:3px; }
+
 /* ── 摸鱼按钮 ── */
 .fish-wrap {
   display:flex; align-items:center; justify-content:center; gap:10px;
@@ -992,30 +1022,66 @@ function showToast(msg) {
 // ════════════════════════════════════════
 let fishTapCount = 0;
 
+const FISH_ACHIEVEMENTS = {
+  1:   { icon:'🐟', title:'今日第一摸',   sub:'摸鱼之旅正式开始' },
+  10:  { icon:'🥉', title:'摸鱼新手',     sub:'已摸 10 下' },
+  20:  { icon:'🥈', title:'摸鱼熟手',     sub:'已摸 20 下' },
+  30:  { icon:'🥇', title:'摸鱼达人',     sub:'已摸 30 下' },
+  50:  { icon:'🏆', title:'摸鱼大师',     sub:'已摸 50 下' },
+  100: { icon:'👑', title:'摸鱼传奇',     sub:'已摸 100 下，封神' },
+};
+
+function showFishBurst(btn, big) {
+  const rect = btn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top  + rect.height / 2;
+  const n  = big ? 10 : 6;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'fish-burst';
+    el.textContent = '🐟';
+    const angle = (i / n) * Math.PI * 2 + (Math.random() - .5) * .5;
+    const dist  = (big ? 90 : 55) + Math.random() * 30;
+    el.style.left = cx + 'px';
+    el.style.top  = cy + 'px';
+    el.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    el.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    el.style.setProperty('--dr', (Math.random() * 60 - 30) + 'deg');
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }
+}
+
+function showAchievement(icon, title, sub) {
+  const card = document.createElement('div');
+  card.className = 'achievement-card';
+  card.innerHTML = `<div class="ach-icon">${icon}</div><div class="ach-title">${title}</div><div class="ach-sub">${sub}</div>`;
+  document.body.appendChild(card);
+  setTimeout(() => card.remove(), 2600);
+}
+
 function tapFish() {
   fishTapCount++;
   if (clockInTime) saveToday();
 
-  // 小鱼动画
   const btn = document.getElementById('btnFish');
   btn.classList.remove('flop');
-  void btn.offsetWidth; // reflow 触发重新播放
+  void btn.offsetWidth;
   btn.classList.add('flop');
   btn.addEventListener('animationend', () => btn.classList.remove('flop'), { once: true });
 
-  // 计数动画
   renderFishCount();
 
-  // 彩蛋 toast
-  const msgs = [
-    '🐟 摸了', '🐟🐟 又摸了', '今天已经很努力了',
-    '鱼：我也很累的', '摸鱼第 ' + fishTapCount + ' 下，记录在案',
-    '鱼表示：停！', '已超过平均摸鱼水平', '鱼已经被摸秃了',
-  ];
-  if (fishTapCount === 1)  showToast('🐟 今日第一摸');
-  else if (fishTapCount === 10) showToast('🏆 十摸成就解锁');
-  else if (fishTapCount === 50) showToast('🐠 你已成为摸鱼大师');
-  else if (fishTapCount % 10 === 0) showToast('已摸 ' + fishTapCount + ' 下，还在继续……');
+  if (FISH_ACHIEVEMENTS[fishTapCount]) {
+    const a = FISH_ACHIEVEMENTS[fishTapCount];
+    showFishBurst(btn, fishTapCount >= 10);
+    showAchievement(a.icon, a.title, a.sub);
+  } else if (fishTapCount % 10 === 0) {
+    showFishBurst(btn, true);
+    showToast('已摸 ' + fishTapCount + ' 下，继续加油……');
+  } else if (fishTapCount % 5 === 0) {
+    showFishBurst(btn, false);
+  }
 }
 
 function renderFishCount() {
