@@ -600,6 +600,7 @@ body {
   body { padding:28px 32px 60px; }
   #viewToday    { max-width:940px; display:grid; grid-template-columns:1fr 1fr; align-items:start; gap:22px; }
   #viewCalendar { max-width:940px; }
+  .col-top { grid-column: 1 / -1; }
 }
 
 </style>
@@ -627,9 +628,8 @@ body {
 <!-- ════ 今天 ════ -->
 <div id="viewToday">
 
-  <!-- 左栏：状态摘要 -->
-  <div class="col-left">
-
+  <!-- 顶栏：全宽倒计时 -->
+  <div class="col-top">
     <div class="countdown-block">
       <div class="countdown-label">距离下班还有</div>
       <div class="countdown-time" id="countdown">--:--:--</div>
@@ -640,47 +640,18 @@ body {
       </div>
       <div id="clockoutArea"></div>
     </div>
-
     <div class="progress-wrap">
       <div class="progress-bar" id="progressBar" style="width:0%"></div>
     </div>
+  </div>
+
+  <!-- 左栏：操作区 -->
+  <div class="col-left">
 
     <div class="lunch-banner" id="lunchBanner">
       <span class="lunch-banner-text">🍵 午休中</span>
       <span class="lunch-banner-dur" id="lunchBannerDur">00:00:00</span>
     </div>
-
-    <div class="stats-row">
-      <div class="stat-card work">
-        <div class="label">工作时长</div>
-        <div class="value" id="totalWork">00:00:00</div>
-      </div>
-      <div class="stat-card slack">
-        <div class="label">摸鱼时间</div>
-        <div class="value" id="totalSlack">00:00:00</div>
-      </div>
-      <div class="stat-card lunch-stat">
-        <div class="label">午休时间</div>
-        <div class="value" id="totalLunch">00:00:00</div>
-      </div>
-    </div>
-
-    <div class="timeline-block">
-      <div class="timeline-label">时间轴</div>
-      <div class="tl-container" id="tlContainer">
-        <div class="tl-empty" id="tlEmpty">打卡后将显示任务时间轴</div>
-      </div>
-      <div class="tl-axis">
-        <span id="tlStart">--:--</span>
-        <span id="tlMid">--:--</span>
-        <span id="tlEnd">--:--</span>
-      </div>
-    </div>
-
-  </div><!-- /col-left -->
-
-  <!-- 右栏：操作区 -->
-  <div class="col-right">
 
     <div class="active-block" id="activeBlock">
       <div class="active-header">
@@ -707,6 +678,38 @@ body {
       <div class="cl-add-row">
         <input type="text" class="cl-add-input" id="clAddInput" placeholder="添加固定任务…" maxlength="40">
         <button class="cl-add-btn" onclick="addChecklistItem()">添加</button>
+      </div>
+    </div>
+
+  </div><!-- /col-left -->
+
+  <!-- 右栏：数据视图 -->
+  <div class="col-right">
+
+    <div class="stats-row">
+      <div class="stat-card work">
+        <div class="label">工作时长</div>
+        <div class="value" id="totalWork">00:00:00</div>
+      </div>
+      <div class="stat-card slack">
+        <div class="label">摸鱼时间</div>
+        <div class="value" id="totalSlack">00:00:00</div>
+      </div>
+      <div class="stat-card lunch-stat">
+        <div class="label">午休时间</div>
+        <div class="value" id="totalLunch">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="timeline-block">
+      <div class="timeline-label">时间轴</div>
+      <div class="tl-container" id="tlContainer">
+        <div class="tl-empty" id="tlEmpty">打卡后将显示任务时间轴</div>
+      </div>
+      <div class="tl-axis">
+        <span id="tlStart">--:--</span>
+        <span id="tlMid">--:--</span>
+        <span id="tlEnd">--:--</span>
       </div>
     </div>
 
