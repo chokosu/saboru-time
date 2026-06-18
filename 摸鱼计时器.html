@@ -72,7 +72,7 @@ body {
 .time-meta { margin-top:10px; font-size:12px; color:#adb2a8; display:flex; align-items:center; justify-content:center; gap:14px; }
 
 /* ── 进度条 ── */
-.progress-wrap { height:4px; background:#e0e3dc; border-radius:2px; overflow:hidden; }
+.progress-wrap { height:4px; background:#e0e3dc; border-radius:2px; overflow:hidden; margin-top:16px; }
 .progress-bar  { height:100%; background:#7a9b7c; border-radius:2px; transition:width 1s linear; }
 .progress-bar.lunch { background:#9a9e9b; }
 
@@ -417,9 +417,9 @@ body {
 .tl-lane { height:13px; margin-bottom:4px; position:relative; z-index:1; }
 .tl-bar {
   position:absolute; top:0; bottom:0; border-radius:4px; min-width:3px;
-  opacity:.82; cursor:default; transition:opacity .15s;
+  opacity:.82; cursor:pointer; transition:opacity .15s;
 }
-.tl-bar:hover { opacity:1; }
+.tl-bar:hover { opacity:1; box-shadow:0 0 0 2px rgba(255,255,255,.6); }
 .tl-bar.type-work  { background:#7a9b7c; }
 .tl-bar.type-slack { background:#c4875a; }
 .tl-bar.type-lunch { background:#9a9e9b; }
@@ -958,6 +958,25 @@ body {
       <span class="report-hint" id="reportHint"></span>
       <button class="btn-cancel" onclick="closeWeekReportModal()">关闭</button>
       <button class="btn-copy-report" onclick="copyWeekReport()">复制</button>
+    </div>
+  </div>
+</div>
+
+<!-- 任务时间编辑弹窗 -->
+<div class="modal-overlay" id="taskEditOverlay">
+  <div class="modal">
+    <h3>编辑任务</h3>
+    <input type="text" id="teNameInput" placeholder="任务名称" maxlength="60" style="width:100%;box-sizing:border-box;background:#f5f6f3;border:1px solid #c8cec4;border-radius:9px;color:#4a4f45;font-size:15px;padding:10px 14px;outline:none;margin-bottom:16px;" />
+    <div class="time-range-row">
+      <input type="time" id="teStart" />
+      <span class="time-range-sep">→</span>
+      <input type="time" id="teEnd" />
+    </div>
+    <div id="teEndHint" style="font-size:11px;color:#9a9e9b;margin-top:4px;margin-bottom:8px;min-height:14px;"></div>
+    <div class="modal-error" id="teError"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel"  onclick="closeTaskEditModal()">取消</button>
+      <button class="btn-confirm" onclick="saveTaskEdit()">保存</button>
     </div>
   </div>
 </div>
@@ -1952,6 +1971,7 @@ function renderTimeline() {
       bar.addEventListener('mouseenter', e => showTlTip(e, label, t.start, tEnd));
       bar.addEventListener('mousemove',  e => moveTlTip(e));
       bar.addEventListener('mouseleave', hideTlTip);
+      bar.addEventListener('click', e => { e.stopPropagation(); openTaskEditModal(String(t.id ?? t.start)); });
       laneEl.appendChild(bar);
     });
     container.appendChild(laneEl);
@@ -1993,6 +2013,78 @@ function moveTlTip(e) {
 function hideTlTip() {
   document.getElementById('tlTooltip').classList.remove('show');
 }
+
+// ════════════════════════════════════════
+// 任务时间编辑弹窗
+// ════════════════════════════════════════
+let taskEditId = null;
+
+function openTaskEditModal(tid) {
+  const t = taskById(tid);
+  if (!t) return;
+  taskEditId = tid;
+  hideTlTip();
+
+  document.getElementById('teNameInput').value = t.name || '';
+  document.getElementById('teError').textContent = '';
+
+  const toHHMM = ts => {
+    const d = new Date(ts);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  };
+  document.getElementById('teStart').value = toHHMM(t.start);
+
+  const isActive = t.end === null;
+  const endInput = document.getElementById('teEnd');
+  endInput.disabled = isActive;
+  endInput.value = isActive ? '' : toHHMM(t.end);
+  document.getElementById('teEndHint').textContent = isActive ? '任务进行中，结束时间不可编辑' : '';
+
+  document.getElementById('taskEditOverlay').classList.add('show');
+}
+
+function closeTaskEditModal() {
+  document.getElementById('taskEditOverlay').classList.remove('show');
+  taskEditId = null;
+}
+
+function saveTaskEdit() {
+  const t = taskById(taskEditId);
+  if (!t) { closeTaskEditModal(); return; }
+
+  const name     = document.getElementById('teNameInput').value.trim();
+  const startVal = document.getElementById('teStart').value;
+  const endVal   = document.getElementById('teEnd').value;
+  const errEl    = document.getElementById('teError');
+
+  if (!startVal) { errEl.textContent = '请填写开始时间'; return; }
+
+  const parseHHMM = (val, base) => {
+    const [h, m] = val.split(':').map(Number);
+    const d = new Date(base); d.setHours(h, m, 0, 0); return d.getTime();
+  };
+
+  const newStart = parseHHMM(startVal, t.start);
+  let newEnd = t.end;
+
+  if (t.end !== null) {
+    if (!endVal) { errEl.textContent = '请填写结束时间'; return; }
+    newEnd = parseHHMM(endVal, t.start);
+    if (newEnd <= newStart) { errEl.textContent = '结束时间须晚于开始时间'; return; }
+  }
+
+  t.name  = name || (t.type === 'lunch' ? '午休' : t.type === 'slack' ? '摸鱼' : '工作任务');
+  t.start = newStart;
+  t.end   = newEnd;
+
+  saveToday(); renderActive(); renderHistory(); renderTimeline(); computeStats();
+  closeTaskEditModal();
+  showToast('任务已更新 ✓');
+}
+
+document.getElementById('taskEditOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeTaskEditModal();
+});
 
 // ════════════════════════════════════════
 // JSON 备份 / 恢复
