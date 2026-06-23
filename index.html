@@ -1277,6 +1277,7 @@ function clockIn() {
   tasks=[]; clockOutTime=0; todayNotes=[]; saveToday();
   document.getElementById('notClockedIn').style.display='none';
   updateMeta(); updateClockoutArea(); showClockInAnimation();
+  requestNotifPermission();
 }
 function resetDay() {
   if (!confirm('确定重新打卡吗？将清空今天所有记录。')) return;
@@ -2610,6 +2611,50 @@ function renderPiP() {
 // ════════════════════════════════════════
 // 主循环
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// 通知提醒
+// ════════════════════════════════════════
+let _notifiedClockout = false;
+let _notifiedLunch    = false;
+let _lastLunchTaskId  = null;
+
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendNotif(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  new Notification(title, { body, icon: '🐟' });
+}
+
+function checkNotifications() {
+  if (!clockInTime || clockOutTime) return;
+  const now = Date.now();
+
+  // 下班前 5 分钟
+  const endAt = clockInTime + WORK_MS;
+  if (!_notifiedClockout && now >= endAt - 5 * 60000 && now < endAt) {
+    _notifiedClockout = true;
+    sendNotif('快下班啦 🎉', '距离下班还有 5 分钟，准备收尾吧');
+  }
+  if (now >= endAt) _notifiedClockout = false; // 次日重置
+
+  // 午休满 55 分钟（距结束 1 小时还有 5 分钟）
+  const lt = activeLunchTask();
+  if (lt) {
+    if (lt.id !== _lastLunchTaskId) { _notifiedLunch = false; _lastLunchTaskId = lt.id; }
+    if (!_notifiedLunch && now - lt.start >= 55 * 60000) {
+      _notifiedLunch = true;
+      sendNotif('午休快结束了 ⏰', '已休息 55 分钟，再过 5 分钟该回来啦');
+    }
+  } else {
+    _notifiedLunch = false;
+    _lastLunchTaskId = null;
+  }
+}
+
 function tick(){
   if(checkMidnight()) return;
   // 未打卡时持续刷新时间输入框（用户未手动编辑时才自动更新）
@@ -2624,7 +2669,7 @@ function tick(){
   const now=new Date();
   document.getElementById('clockNow').textContent=
     String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
-  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPiP(); saveToday(); maybeSyncGist();
+  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPiP(); saveToday(); maybeSyncGist(); checkNotifications();
   // 更新活动任务中的计时（直接改 DOM，不重新渲染）
   document.querySelectorAll('.atr-elapsed').forEach(el=>{
     el.textContent=fmtDuration(Date.now()-parseInt(el.dataset.start));
