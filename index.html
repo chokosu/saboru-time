@@ -1105,6 +1105,7 @@ function saveToday() {
   if (clockOutTime) rec.clockOut = clockOutTime;
   const existing = history[clockInDateKey()];
   if (existing && existing.vacation) rec.vacation = true;
+  if (existing && existing.checks)   rec.checks   = existing.checks;
   history[clockInDateKey()] = rec;
   saveHistory(history);
   gistDirty = true;
