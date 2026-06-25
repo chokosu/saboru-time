@@ -1020,6 +1020,7 @@ body {
     <div id="teEndHint" style="font-size:11px;color:#9a9e9b;margin-top:4px;margin-bottom:8px;min-height:14px;"></div>
     <div class="modal-error" id="teError"></div>
     <div class="modal-btns">
+      <button class="btn-disconnect" onclick="deleteTaskFromEdit()">删除</button>
       <button class="btn-cancel"  onclick="closeTaskEditModal()">取消</button>
       <button class="btn-confirm" onclick="saveTaskEdit()">保存</button>
     </div>
@@ -2283,6 +2284,12 @@ function openTaskEditModal(tid) {
 function closeTaskEditModal() {
   document.getElementById('taskEditOverlay').classList.remove('show');
   taskEditId = null;
+}
+
+function deleteTaskFromEdit() {
+  if (!taskEditId) return;
+  deleteTask(taskEditId);
+  closeTaskEditModal();
 }
 
 function saveTaskEdit() {
