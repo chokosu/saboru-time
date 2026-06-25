@@ -1283,7 +1283,8 @@ function clockIn() {
 function resetDay() {
   if (!confirm('确定重新打卡吗？将清空今天所有记录。')) return;
   delete history[clockInDateKey()]; saveHistory(history);
-  clockInTime=0; clockOutTime=0; tasks=[]; todayNotes=[];
+  clockInTime=0; clockOutTime=0; tasks=[]; todayNotes=[]; fishTapCount=0;
+  renderFishCount(); renderFabBadge();
   const n=new Date();
   document.getElementById('clockInTimeInput').value=
     String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
