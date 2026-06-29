@@ -451,6 +451,72 @@ body {
 .tt-time { color:#b0c6b1; font-variant-numeric:tabular-nums; font-size:11px; }
 .tt-dur  { color:#9aab9e;  font-variant-numeric:tabular-nums; font-size:11px; }
 
+/* ── 计划时间块（时间轴虚线条） ── */
+.tl-plan-lane { position:relative; height:16px; margin-bottom:6px; }
+.tl-plan-bar {
+  position:absolute; top:0; bottom:0; border-radius:4px;
+  border:1.5px dashed #7a9b7c; background:rgba(122,155,124,.10);
+  min-width:3px; cursor:default;
+  transition:background .15s;
+}
+.tl-plan-bar:hover { background:rgba(122,155,124,.20); }
+.tl-plan-bar.plan-now { border-color:#5c7a5e; background:rgba(92,122,94,.18); }
+
+/* ── 今日计划 ── */
+.plan-block {
+  background:#f2f3ee; border:1px solid #d3d9d0; border-radius:16px;
+  padding:18px 20px; box-shadow:0 2px 12px rgba(90,110,90,.06);
+}
+.plan-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.plan-label  { font-size:11px; color:#8c9189; letter-spacing:2px; text-transform:uppercase; }
+.plan-progress { font-size:11px; color:#b0c6b1; font-variant-numeric:tabular-nums; }
+.plan-items  { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.plan-item {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 10px; border-radius:9px; background:#edeee8; transition:background .15s;
+}
+.plan-item.plan-now  { background:#e8ece8; }
+.plan-item.plan-past { opacity:.48; }
+.plan-item-dot {
+  width:7px; height:7px; border-radius:50%; background:#c4c9bf; flex-shrink:0;
+}
+.plan-item.plan-now .plan-item-dot { background:#7a9b7c; animation:pulse 1.4s ease-in-out infinite; }
+.plan-item-time {
+  font-size:11px; color:#9aab9e; white-space:nowrap;
+  font-variant-numeric:tabular-nums; flex-shrink:0;
+}
+.plan-item-name { flex:1; font-size:13px; color:#4a4f45; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plan-item.plan-past .plan-item-name { color:#adb2a8; }
+.plan-item-del {
+  background:none; border:none; cursor:pointer; color:#d3d9d0;
+  font-size:15px; padding:2px 4px; border-radius:4px; flex-shrink:0;
+  opacity:0; transition:opacity .15s,color .15s; line-height:1;
+}
+.plan-item:hover .plan-item-del { opacity:1; }
+.plan-item-del:hover { color:#b07c72; }
+.plan-empty { font-size:13px; color:#c4c9bf; text-align:center; padding:8px 0 12px; font-style:italic; }
+.plan-add-row { display:flex; gap:6px; align-items:center; }
+.plan-time-inp {
+  background:#edeee8; border:1px solid #c8cec4; border-radius:9px;
+  color:#4a4f45; font-size:12px; padding:7px 6px; outline:none;
+  font-family:inherit; transition:border-color .15s; width:76px; flex-shrink:0;
+}
+.plan-time-inp:focus { border-color:#7a9b7c; }
+.plan-sep { color:#adb2a8; font-size:13px; flex-shrink:0; }
+.plan-name-inp {
+  flex:1; min-width:0; background:#edeee8; border:1px solid #c8cec4; border-radius:9px;
+  color:#4a4f45; font-size:13px; padding:7px 10px; outline:none;
+  font-family:inherit; transition:border-color .15s;
+}
+.plan-name-inp:focus { border-color:#7a9b7c; }
+.plan-name-inp::placeholder { color:#c4c9bf; }
+.plan-add-btn {
+  background:#7a9b7c; border:none; color:#f5f6f2; border-radius:9px;
+  padding:7px 13px; font-size:15px; font-weight:500; cursor:pointer;
+  font-family:inherit; transition:background .15s; flex-shrink:0;
+}
+.plan-add-btn:hover { background:#5c7a5e; }
+
 /* ── FAB ── */
 .fab {
   position:fixed; bottom:28px; right:22px; width:46px; height:46px;
@@ -781,6 +847,24 @@ body {
       </div>
     </div>
 
+    <!-- 今日计划 -->
+    <div class="plan-block" id="planBlock">
+      <div class="plan-header">
+        <span class="plan-label">今日计划</span>
+        <span class="plan-progress" id="planProgress"></span>
+      </div>
+      <div class="plan-items" id="planItems">
+        <div class="plan-empty" id="planEmpty">添加今天的时间安排</div>
+      </div>
+      <div class="plan-add-row">
+        <input type="time" id="planAddStart" class="plan-time-inp">
+        <span class="plan-sep">–</span>
+        <input type="time" id="planAddEnd" class="plan-time-inp">
+        <input type="text" id="planAddName" class="plan-name-inp" placeholder="计划任务…" maxlength="30" onkeydown="if(event.key==='Enter')addPlanBlock()">
+        <button class="plan-add-btn" onclick="addPlanBlock()">+</button>
+      </div>
+    </div>
+
     <!-- 每日清单 -->
     <div class="checklist-block">
       <div class="checklist-header">
@@ -1075,8 +1159,10 @@ let clockInTime  = 0;
 let clockOutTime = 0;
 let tasks        = [];
 let todayNotes   = [];
+let planBlocks   = [];
 // task: { name, start, end(ms|null), type:'work'|'lunch', status:'active'|'paused'|'done' }
 // note: { id, text, ts }
+// planBlock: { id, name, startMs, endMs }
 
 function loadToday() {
   const k = todayKey();
@@ -1107,9 +1193,103 @@ function saveToday() {
   const existing = history[clockInDateKey()];
   if (existing && existing.vacation) rec.vacation = true;
   if (existing && existing.checks)   rec.checks   = existing.checks;
+  if (existing && existing.plan)     rec.plan     = existing.plan;
   history[clockInDateKey()] = rec;
   saveHistory(history);
   gistDirty = true;
+}
+
+// ════════════════════════════════════════
+// 今日计划（时间块）
+// ════════════════════════════════════════
+function loadPlanBlocks() {
+  const rec = history[todayKey()];
+  planBlocks = (rec && rec.plan) || [];
+}
+
+function savePlanBlocks() {
+  const key = todayKey();
+  if (!history[key]) history[key] = {};
+  history[key].plan = planBlocks;
+  saveHistory(history);
+  gistDirty = true;
+  renderPlan();
+}
+
+function addPlanBlock() {
+  const startVal = document.getElementById('planAddStart').value;
+  const endVal   = document.getElementById('planAddEnd').value;
+  const name     = document.getElementById('planAddName').value.trim();
+  if (!startVal || !endVal || !name) return;
+  const d = new Date();
+  const [sh, sm] = startVal.split(':').map(Number);
+  const [eh, em] = endVal.split(':').map(Number);
+  const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
+  const endMs   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
+  if (endMs <= startMs) { alert('结束时间必须晚于开始时间'); return; }
+  planBlocks.push({ id: Date.now(), name, startMs, endMs });
+  planBlocks.sort((a, b) => a.startMs - b.startMs);
+  savePlanBlocks();
+  document.getElementById('planAddName').value  = '';
+  document.getElementById('planAddStart').value = '';
+  document.getElementById('planAddEnd').value   = '';
+  document.getElementById('planAddName').focus();
+}
+
+function deletePlanBlock(id) {
+  planBlocks = planBlocks.filter(b => b.id !== id);
+  _notifiedPlanIds.delete(id);
+  savePlanBlocks();
+}
+
+function renderPlan() {
+  const listEl     = document.getElementById('planItems');
+  const emptyEl    = document.getElementById('planEmpty');
+  const progressEl = document.getElementById('planProgress');
+  if (!listEl) return;
+
+  listEl.querySelectorAll('.plan-item').forEach(el => el.remove());
+
+  if (!planBlocks.length) {
+    emptyEl.style.display = '';
+    progressEl.textContent = '';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  const now = Date.now();
+  let doneCount = 0;
+
+  planBlocks.forEach(b => {
+    const isPast   = now > b.endMs;
+    const isNow    = now >= b.startMs && now <= b.endMs;
+    if (isPast) doneCount++;
+
+    const item = document.createElement('div');
+    item.className = 'plan-item' + (isNow ? ' plan-now' : '') + (isPast ? ' plan-past' : '');
+    item.dataset.id = b.id;
+
+    const dot = document.createElement('div');
+    dot.className = 'plan-item-dot';
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'plan-item-time';
+    timeEl.textContent = fmtHM(b.startMs) + '–' + fmtHM(b.endMs);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'plan-item-name';
+    nameEl.textContent = b.name;
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'plan-item-del';
+    delBtn.textContent = '×';
+    delBtn.onclick = () => deletePlanBlock(b.id);
+
+    item.append(dot, timeEl, nameEl, delBtn);
+    listEl.insertBefore(item, emptyEl);
+  });
+
+  progressEl.textContent = doneCount + '/' + planBlocks.length;
 }
 
 // ════════════════════════════════════════
@@ -1991,6 +2171,28 @@ function renderTimeline() {
   band.style.width = Math.min(100, (clockInTime + WORK_MS - spanStart) / totalDur * 100) + '%';
   container.appendChild(band);
 
+  // 计划时间块（虚线框，位于任务泳道之上）
+  const visiblePlans = planBlocks.filter(b => b.startMs < spanEnd && b.endMs > spanStart);
+  if (visiblePlans.length) {
+    const planLane = document.createElement('div');
+    planLane.className = 'tl-plan-lane';
+    visiblePlans.forEach(b => {
+      const bStart = Math.max(b.startMs, spanStart);
+      const bEnd   = Math.min(b.endMs, spanEnd);
+      const left   = (bStart - spanStart) / totalDur * 100;
+      const width  = Math.max(0.5, (bEnd - bStart) / totalDur * 100);
+      const bar = document.createElement('div');
+      bar.className = 'tl-plan-bar' + (now >= b.startMs && now <= b.endMs ? ' plan-now' : '');
+      bar.style.left  = left + '%';
+      bar.style.width = width + '%';
+      bar.addEventListener('mouseenter', e => showTlTip(e, '计划：' + b.name, b.startMs, b.endMs));
+      bar.addEventListener('mousemove',  e => moveTlTip(e));
+      bar.addEventListener('mouseleave', hideTlTip);
+      planLane.appendChild(bar);
+    });
+    container.appendChild(planLane);
+  }
+
   // 贪心分配泳道（并行任务不叠行）
   const lanes = [];
   all.forEach(t => {
@@ -2625,6 +2827,7 @@ function renderPiP() {
 // ════════════════════════════════════════
 let _notifiedClockout = false;
 let _notifiedLunch    = false;
+let _notifiedPlanIds  = new Set();
 let _lastLunchTaskId  = null;
 
 function requestNotifPermission() {
@@ -2662,6 +2865,15 @@ function checkNotifications() {
     _notifiedLunch = false;
     _lastLunchTaskId = null;
   }
+
+  // 时间块到达提醒（在块开始后 1 分钟内触发一次）
+  planBlocks.forEach(b => {
+    if (_notifiedPlanIds.has(b.id)) return;
+    if (now >= b.startMs && now < b.startMs + 60000) {
+      _notifiedPlanIds.add(b.id);
+      sendNotif('⏰ 计划提醒', '「' + b.name + '」开始了（' + fmtHM(b.startMs) + '–' + fmtHM(b.endMs) + '）');
+    }
+  });
 }
 
 function tick(){
@@ -2678,7 +2890,7 @@ function tick(){
   const now=new Date();
   document.getElementById('clockNow').textContent=
     String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
-  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPiP(); saveToday(); maybeSyncGist(); checkNotifications();
+  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPlan(); renderPiP(); saveToday(); maybeSyncGist(); checkNotifications();
   // 更新活动任务中的计时（直接改 DOM，不重新渲染）
   document.querySelectorAll('.atr-elapsed').forEach(el=>{
     el.textContent=fmtDuration(Date.now()-parseInt(el.dataset.start));
@@ -3180,6 +3392,7 @@ if(clockInTime){
   document.getElementById('clockInTimeInput').value=
     String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
 }
+loadPlanBlocks(); renderPlan();
 renderActive(); renderHistory(); renderTimeline(); updateClockoutArea(); renderVacationBtn(); renderFabBadge(); renderFishCount(); initQuote(); renderChecklist(); tick();
 setInterval(tick,1000);
 </script>
