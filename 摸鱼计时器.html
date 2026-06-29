@@ -516,6 +516,25 @@ body {
   font-family:inherit; transition:background .15s; flex-shrink:0;
 }
 .plan-add-btn:hover { background:#5c7a5e; }
+.plan-item-check {
+  width:18px; height:18px; border:1.5px solid #b0c6b1; border-radius:5px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; background:none; font-size:11px; color:transparent;
+  transition:background .15s,border-color .15s; line-height:1; font-family:inherit;
+}
+.plan-item.plan-checked .plan-item-check { background:#7a9b7c; border-color:#7a9b7c; color:#f2f3ee; }
+.plan-item.plan-checked .plan-item-name  { color:#adb2a8; text-decoration:line-through; }
+.plan-item-start {
+  background:none; border:1px solid #b0c6b1; color:#7a9b7c;
+  border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer;
+  transition:background .15s; white-space:nowrap; font-family:inherit; flex-shrink:0;
+}
+.plan-item-start:hover { background:#d4ebd4; }
+.plan-fix-label {
+  display:flex; align-items:center; gap:3px; font-size:12px; color:#9a9e9b;
+  cursor:pointer; flex-shrink:0; white-space:nowrap; user-select:none;
+}
+.plan-fix-cb { cursor:pointer; accent-color:#7a9b7c; width:13px; height:13px; flex-shrink:0; }
 
 /* ── FAB ── */
 .fab {
@@ -847,36 +866,24 @@ body {
       </div>
     </div>
 
-    <!-- 今日计划 -->
+    <!-- 今日计划（含固定任务） -->
     <div class="plan-block" id="planBlock">
       <div class="plan-header">
         <span class="plan-label">今日计划</span>
         <span class="plan-progress" id="planProgress"></span>
       </div>
       <div class="plan-items" id="planItems">
-        <div class="plan-empty" id="planEmpty">添加今天的时间安排</div>
+        <div class="plan-empty" id="planEmpty">添加今日安排或固定任务</div>
       </div>
       <div class="plan-add-row">
         <input type="time" id="planAddStart" class="plan-time-inp">
         <span class="plan-sep">–</span>
         <input type="time" id="planAddEnd" class="plan-time-inp">
-        <input type="text" id="planAddName" class="plan-name-inp" placeholder="计划任务…" maxlength="30" onkeydown="if(event.key==='Enter')addPlanBlock()">
-        <button class="plan-add-btn" onclick="addPlanBlock()">+</button>
-      </div>
-    </div>
-
-    <!-- 每日清单 -->
-    <div class="checklist-block">
-      <div class="checklist-header">
-        <span class="checklist-label">每日清单</span>
-        <span class="checklist-progress" id="clProgress"></span>
-      </div>
-      <div class="cl-items" id="clItems">
-        <div class="cl-empty" id="clEmpty">添加你的日常固定任务</div>
-      </div>
-      <div class="cl-add-row">
-        <input type="text" class="cl-add-input" id="clAddInput" placeholder="添加固定任务…" maxlength="40">
-        <button class="cl-add-btn" onclick="addChecklistItem()">添加</button>
+        <input type="text" id="planAddName" class="plan-name-inp" placeholder="任务名…" maxlength="30" onkeydown="if(event.key==='Enter')addPlanItem()">
+        <label class="plan-fix-label" title="设为每日固定任务，每天自动出现">
+          <input type="checkbox" id="planFixToggle" class="plan-fix-cb"> 固定
+        </label>
+        <button class="plan-add-btn" onclick="addPlanItem()">+</button>
       </div>
     </div>
 
@@ -1213,33 +1220,63 @@ function savePlanBlocks() {
   history[key].plan = planBlocks;
   saveHistory(history);
   gistDirty = true;
-  renderPlan();
 }
 
-function addPlanBlock() {
+function addPlanItem() {
   const startVal = document.getElementById('planAddStart').value;
   const endVal   = document.getElementById('planAddEnd').value;
   const name     = document.getElementById('planAddName').value.trim();
-  if (!startVal || !endVal || !name) return;
-  const d = new Date();
-  const [sh, sm] = startVal.split(':').map(Number);
-  const [eh, em] = endVal.split(':').map(Number);
-  const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
-  const endMs   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
-  if (endMs <= startMs) { alert('结束时间必须晚于开始时间'); return; }
-  planBlocks.push({ id: Date.now(), name, startMs, endMs });
-  planBlocks.sort((a, b) => a.startMs - b.startMs);
-  savePlanBlocks();
+  const isFixed  = document.getElementById('planFixToggle').checked;
+  if (!name) return;
+
+  if (isFixed) {
+    const item = { id: newId(), name };
+    if (startVal) item.startTime = startVal;
+    if (startVal && endVal) item.endTime = endVal;
+    checklist.push(item);
+    saveChecklist(checklist);
+  } else {
+    if (!startVal || !endVal) { showToast('临时计划需要填写时间段'); return; }
+    const d = new Date();
+    const [sh, sm] = startVal.split(':').map(Number);
+    const [eh, em] = endVal.split(':').map(Number);
+    const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
+    const endMs   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
+    if (endMs <= startMs) { showToast('结束时间必须晚于开始时间'); return; }
+    planBlocks.push({ id: Date.now(), name, startMs, endMs });
+    planBlocks.sort((a, b) => a.startMs - b.startMs);
+    savePlanBlocks();
+  }
+
   document.getElementById('planAddName').value  = '';
   document.getElementById('planAddStart').value = '';
   document.getElementById('planAddEnd').value   = '';
   document.getElementById('planAddName').focus();
+  renderPlan();
 }
 
 function deletePlanBlock(id) {
   planBlocks = planBlocks.filter(b => b.id !== id);
   _notifiedPlanIds.delete(id);
   savePlanBlocks();
+  renderPlan();
+}
+
+function allPlanBarsForTimeline() {
+  const d = new Date();
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const bars = [];
+  checklist.forEach(item => {
+    if (item.startTime && item.endTime) {
+      const [sh, sm] = item.startTime.split(':').map(Number);
+      const [eh, em] = item.endTime.split(':').map(Number);
+      bars.push({ id: 'cl-' + item.id, name: item.name,
+        startMs: base + (sh * 60 + sm) * 60000,
+        endMs:   base + (eh * 60 + em) * 60000 });
+    }
+  });
+  planBlocks.forEach(b => bars.push({ id: b.id, name: b.name, startMs: b.startMs, endMs: b.endMs }));
+  return bars.sort((a, b) => a.startMs - b.startMs);
 }
 
 function renderPlan() {
@@ -1250,46 +1287,106 @@ function renderPlan() {
 
   listEl.querySelectorAll('.plan-item').forEach(el => el.remove());
 
-  if (!planBlocks.length) {
+  const checks = todayChecks();
+  const now = Date.now();
+  const d = new Date();
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+  // Build unified list: recurring (checklist) + one-off (planBlocks)
+  const allItems = [];
+  checklist.forEach(item => {
+    let startMs = null, endMs = null;
+    if (item.startTime) {
+      const [sh, sm] = item.startTime.split(':').map(Number);
+      startMs = base + (sh * 60 + sm) * 60000;
+    }
+    if (item.startTime && item.endTime) {
+      const [eh, em] = item.endTime.split(':').map(Number);
+      endMs = base + (eh * 60 + em) * 60000;
+    }
+    allItems.push({ type: 'fixed', id: item.id, name: item.name, startMs, endMs, checked: !!checks[item.id] });
+  });
+  planBlocks.forEach(b => {
+    allItems.push({ type: 'once', id: b.id, name: b.name, startMs: b.startMs, endMs: b.endMs, checked: false });
+  });
+
+  // Sort: timed items first by time, then untimed at end
+  allItems.sort((a, b) => {
+    if (a.startMs !== null && b.startMs !== null) return a.startMs - b.startMs;
+    if (a.startMs !== null) return -1;
+    if (b.startMs !== null) return 1;
+    return 0;
+  });
+
+  if (!allItems.length) {
     emptyEl.style.display = '';
     progressEl.textContent = '';
     return;
   }
-
   emptyEl.style.display = 'none';
-  const now = Date.now();
+
   let doneCount = 0;
+  allItems.forEach(item => {
+    if (item.type === 'fixed' && item.checked) doneCount++;
+    if (item.type === 'once' && item.endMs && now > item.endMs) doneCount++;
+  });
 
-  planBlocks.forEach(b => {
-    const isPast   = now > b.endMs;
-    const isNow    = now >= b.startMs && now <= b.endMs;
-    if (isPast) doneCount++;
+  allItems.forEach(item => {
+    const isPast    = item.endMs !== null && now > item.endMs;
+    const isNow     = item.startMs !== null && item.endMs !== null && now >= item.startMs && now <= item.endMs;
+    const isDone    = item.checked;
 
-    const item = document.createElement('div');
-    item.className = 'plan-item' + (isNow ? ' plan-now' : '') + (isPast ? ' plan-past' : '');
-    item.dataset.id = b.id;
+    const el = document.createElement('div');
+    el.className = 'plan-item'
+      + (isNow  ? ' plan-now'     : '')
+      + (isPast ? ' plan-past'    : '')
+      + (isDone ? ' plan-checked' : '');
+    el.dataset.id = item.id;
 
-    const dot = document.createElement('div');
-    dot.className = 'plan-item-dot';
+    if (item.type === 'fixed') {
+      const cb = document.createElement('button');
+      cb.className = 'plan-item-check';
+      cb.textContent = isDone ? '✓' : '';
+      cb.onclick = () => toggleCheck(item.id);
+      el.appendChild(cb);
+    } else {
+      const dot = document.createElement('div');
+      dot.className = 'plan-item-dot';
+      el.appendChild(dot);
+    }
 
-    const timeEl = document.createElement('span');
-    timeEl.className = 'plan-item-time';
-    timeEl.textContent = fmtHM(b.startMs) + '–' + fmtHM(b.endMs);
+    if (item.startMs !== null) {
+      const timeEl = document.createElement('span');
+      timeEl.className = 'plan-item-time';
+      timeEl.textContent = fmtHM(item.startMs) + (item.endMs ? '–' + fmtHM(item.endMs) : '');
+      el.appendChild(timeEl);
+    }
 
     const nameEl = document.createElement('span');
     nameEl.className = 'plan-item-name';
-    nameEl.textContent = b.name;
+    nameEl.textContent = item.name;
+    el.appendChild(nameEl);
+
+    if (item.type === 'fixed') {
+      const startBtn = document.createElement('button');
+      startBtn.className = 'plan-item-start';
+      startBtn.textContent = '▶';
+      startBtn.title = '开始计时';
+      startBtn.onclick = () => startChecklistTask(item.id);
+      el.appendChild(startBtn);
+    }
 
     const delBtn = document.createElement('button');
     delBtn.className = 'plan-item-del';
     delBtn.textContent = '×';
-    delBtn.onclick = () => deletePlanBlock(b.id);
+    delBtn.title = item.type === 'fixed' ? '从固定任务中删除' : '删除';
+    delBtn.onclick = () => item.type === 'fixed' ? deleteChecklistItem(item.id) : deletePlanBlock(item.id);
+    el.appendChild(delBtn);
 
-    item.append(dot, timeEl, nameEl, delBtn);
-    listEl.insertBefore(item, emptyEl);
+    listEl.insertBefore(el, emptyEl);
   });
 
-  progressEl.textContent = doneCount + '/' + planBlocks.length;
+  progressEl.textContent = doneCount + '/' + allItems.length;
 }
 
 // ════════════════════════════════════════
@@ -2172,7 +2269,7 @@ function renderTimeline() {
   container.appendChild(band);
 
   // 计划时间块（虚线框，位于任务泳道之上）
-  const visiblePlans = planBlocks.filter(b => b.startMs < spanEnd && b.endMs > spanStart);
+  const visiblePlans = allPlanBarsForTimeline().filter(b => b.startMs < spanEnd && b.endMs > spanStart);
   if (visiblePlans.length) {
     const planLane = document.createElement('div');
     planLane.className = 'tl-plan-lane';
@@ -2867,7 +2964,7 @@ function checkNotifications() {
   }
 
   // 时间块到达提醒（在块开始后 1 分钟内触发一次）
-  planBlocks.forEach(b => {
+  allPlanBarsForTimeline().forEach(b => {
     if (_notifiedPlanIds.has(b.id)) return;
     if (now >= b.startMs && now < b.startMs + 60000) {
       _notifiedPlanIds.add(b.id);
@@ -3343,42 +3440,7 @@ function startChecklistTask(id) {
   openModal(item.name, 'work');
 }
 
-function renderChecklist() {
-  const container = document.getElementById('clItems');
-  const emptyEl   = document.getElementById('clEmpty');
-  const progEl    = document.getElementById('clProgress');
-  if (!container) return;
-
-  Array.from(container.children).forEach(c => { if (c.id !== 'clEmpty') c.remove(); });
-
-  if (!checklist.length) {
-    emptyEl.style.display = '';
-    if (progEl) progEl.textContent = '';
-    return;
-  }
-  emptyEl.style.display = 'none';
-
-  const checks    = todayChecks();
-  const doneCount = checklist.filter(c => checks[c.id]).length;
-  if (progEl) progEl.textContent = doneCount + ' / ' + checklist.length;
-
-  checklist.forEach(item => {
-    const done = !!checks[item.id];
-    const div  = document.createElement('div');
-    div.className = 'cl-item' + (done ? ' cl-done' : '');
-    div.innerHTML = `
-      <button class="cl-check" onclick="toggleCheck('${item.id}')">${done ? '✓' : ''}</button>
-      <span class="cl-name" title="${escHtml(item.name)}">${escHtml(item.name)}</span>
-      <button class="cl-btn" onclick="startChecklistTask('${item.id}')">▶ 开始</button>
-      <button class="cl-del" onclick="deleteChecklistItem('${item.id}')" title="删除">×</button>
-    `;
-    container.appendChild(div);
-  });
-}
-
-document.getElementById('clAddInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') addChecklistItem();
-});
+function renderChecklist() { renderPlan(); }
 
 // ════════════════════════════════════════
 // 初始化
@@ -3393,7 +3455,7 @@ if(clockInTime){
     String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
 }
 loadPlanBlocks(); renderPlan();
-renderActive(); renderHistory(); renderTimeline(); updateClockoutArea(); renderVacationBtn(); renderFabBadge(); renderFishCount(); initQuote(); renderChecklist(); tick();
+renderActive(); renderHistory(); renderTimeline(); updateClockoutArea(); renderVacationBtn(); renderFabBadge(); renderFishCount(); initQuote(); tick();
 setInterval(tick,1000);
 </script>
 </body>
