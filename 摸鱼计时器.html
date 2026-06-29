@@ -456,11 +456,12 @@ body {
 .tl-plan-bar {
   position:absolute; top:0; bottom:0; border-radius:4px;
   border:1.5px dashed #7a9b7c; background:rgba(122,155,124,.10);
-  min-width:3px; cursor:default;
-  transition:background .15s;
+  min-width:3px; cursor:default; opacity:.75; transition:opacity .15s;
 }
-.tl-plan-bar:hover { background:rgba(122,155,124,.20); }
-.tl-plan-bar.plan-now { border-color:#5c7a5e; background:rgba(92,122,94,.18); }
+.tl-plan-bar:hover { opacity:1; }
+.tl-plan-bar.type-slack { border-color:#c4875a; background:rgba(196,135,90,.10); }
+.tl-plan-bar.type-lunch { border-color:#9a9e9b; background:rgba(154,158,155,.10); }
+.tl-plan-bar.plan-now { opacity:1; border-style:solid; }
 
 /* ── 今日计划 ── */
 .plan-block {
@@ -516,6 +517,22 @@ body {
   font-family:inherit; transition:background .15s; flex-shrink:0;
 }
 .plan-add-btn:hover { background:#5c7a5e; }
+.plan-type-row { display:flex; gap:5px; margin-bottom:8px; }
+.plan-type-btn {
+  flex:1; font-size:11px; padding:4px 6px; border-radius:7px;
+  background:#edeee8; border:1px solid #d3d9d0; color:#8c9189;
+  cursor:pointer; transition:background .15s; font-family:inherit;
+}
+.plan-type-btn.sel-work  { background:#7a9b7c; color:#f2f3ee; border-color:#7a9b7c; }
+.plan-type-btn.sel-slack { background:#c4875a; color:#f2f3ee; border-color:#c4875a; }
+.plan-type-btn.sel-lunch { background:#9a9e9b; color:#f2f3ee; border-color:#9a9e9b; }
+.plan-item { cursor:pointer; }
+.plan-item.plan-type-work  { border-left:3px solid #7a9b7c; padding-left:9px; }
+.plan-item.plan-type-slack { border-left:3px solid #c4875a; padding-left:9px; }
+.plan-item.plan-type-lunch { border-left:3px solid #9a9e9b; padding-left:9px; }
+.plan-item-dot.type-work  { background:#7a9b7c; }
+.plan-item-dot.type-slack { background:#c4875a; }
+.plan-item-dot.type-lunch { background:#9a9e9b; }
 .plan-item-check {
   width:18px; height:18px; border:1.5px solid #b0c6b1; border-radius:5px;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -875,6 +892,11 @@ body {
       <div class="plan-items" id="planItems">
         <div class="plan-empty" id="planEmpty">添加今日安排或固定任务</div>
       </div>
+      <div class="plan-type-row">
+        <button class="plan-type-btn sel-work"  id="pt-work"  onclick="selectPlanAddType('work')">🟢 工作</button>
+        <button class="plan-type-btn"           id="pt-slack" onclick="selectPlanAddType('slack')">☕ 摸鱼</button>
+        <button class="plan-type-btn"           id="pt-lunch" onclick="selectPlanAddType('lunch')">🍵 午休</button>
+      </div>
       <div class="plan-add-row">
         <input type="time" id="planAddStart" class="plan-time-inp">
         <span class="plan-sep">–</span>
@@ -1118,6 +1140,31 @@ body {
   </div>
 </div>
 
+<!-- 计划条目编辑弹窗 -->
+<div class="modal-overlay" id="planEditOverlay">
+  <div class="modal">
+    <h3>编辑计划</h3>
+    <input type="text" id="peNameInput" placeholder="任务名称" maxlength="60"
+      style="width:100%;box-sizing:border-box;background:#f5f6f3;border:1px solid #c8cec4;border-radius:9px;color:#4a4f45;font-size:15px;padding:10px 14px;outline:none;margin-bottom:14px;" />
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="type-btn" id="petype-work"  onclick="selectPlanEditType('work')">🟢 工作任务</button>
+      <button class="type-btn" id="petype-slack" onclick="selectPlanEditType('slack')">☕ 摸鱼</button>
+      <button class="type-btn" id="petype-lunch" onclick="selectPlanEditType('lunch')">🍵 午休</button>
+    </div>
+    <div class="time-range-row">
+      <input type="time" id="peStart" />
+      <span class="time-range-sep">→</span>
+      <input type="time" id="peEnd" />
+    </div>
+    <div class="modal-error" id="peError" style="margin-top:8px;min-height:14px;font-size:12px;color:#b07c72;"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-disconnect" onclick="deletePlanFromEdit()">删除</button>
+      <button class="btn-cancel"     onclick="closePlanEditModal()">取消</button>
+      <button class="btn-confirm"    onclick="savePlanEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="handleJSONImport(event)">
 <!-- FAB + 碎碎念气泡 -->
 <div class="notes-bubble hidden" id="notesBubble">
@@ -1222,6 +1269,88 @@ function savePlanBlocks() {
   gistDirty = true;
 }
 
+let selectedPlanAddType = 'work';
+function selectPlanAddType(t) {
+  selectedPlanAddType = t;
+  ['work','slack','lunch'].forEach(k => {
+    document.getElementById('pt-' + k).className = 'plan-type-btn' + (k === t ? ' sel-' + k : '');
+  });
+}
+
+let planEditId = null, planEditIsFixed = false, selectedPlanEditType = 'work';
+function selectPlanEditType(t) {
+  selectedPlanEditType = t;
+  ['work','slack','lunch'].forEach(k => {
+    document.getElementById('petype-' + k).className = 'type-btn' + (k === t ? ' sel-' + k : '');
+  });
+}
+function openPlanEditModal(id, isFixed) {
+  planEditId = id; planEditIsFixed = isFixed;
+  hideTlTip && hideTlTip();
+  if (isFixed) {
+    const item = checklist.find(c => String(c.id) === String(id));
+    if (!item) return;
+    document.getElementById('peNameInput').value = item.name || '';
+    document.getElementById('peStart').value = item.startTime || '';
+    document.getElementById('peEnd').value   = item.endTime   || '';
+    selectPlanEditType(item.type || 'work');
+  } else {
+    const b = planBlocks.find(b => b.id === id);
+    if (!b) return;
+    document.getElementById('peNameInput').value = b.name || '';
+    const hm = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+    document.getElementById('peStart').value = hm(b.startMs);
+    document.getElementById('peEnd').value   = hm(b.endMs);
+    selectPlanEditType(b.type || 'work');
+  }
+  document.getElementById('peError').textContent = '';
+  document.getElementById('planEditOverlay').classList.add('show');
+}
+function closePlanEditModal() {
+  document.getElementById('planEditOverlay').classList.remove('show');
+  planEditId = null;
+}
+function deletePlanFromEdit() {
+  if (!planEditId) return;
+  if (planEditIsFixed) deleteChecklistItem(planEditId);
+  else deletePlanBlock(planEditId);
+  closePlanEditModal();
+}
+function savePlanEdit() {
+  if (!planEditId) return;
+  const name     = document.getElementById('peNameInput').value.trim();
+  const startVal = document.getElementById('peStart').value;
+  const endVal   = document.getElementById('peEnd').value;
+  const errEl    = document.getElementById('peError');
+
+  if (planEditIsFixed) {
+    const item = checklist.find(c => String(c.id) === String(planEditId));
+    if (!item) { closePlanEditModal(); return; }
+    if (startVal && endVal && endVal <= startVal) { errEl.textContent = '结束时间须晚于开始时间'; return; }
+    if (name) item.name = name;
+    item.type = selectedPlanEditType;
+    if (startVal) item.startTime = startVal; else delete item.startTime;
+    if (startVal && endVal) item.endTime = endVal; else delete item.endTime;
+    saveChecklist(checklist);
+  } else {
+    const b = planBlocks.find(b => b.id === planEditId);
+    if (!b) { closePlanEditModal(); return; }
+    if (!startVal || !endVal) { errEl.textContent = '请填写时间段'; return; }
+    const ref = new Date(b.startMs);
+    const [sh, sm] = startVal.split(':').map(Number);
+    const [eh, em] = endVal.split(':').map(Number);
+    const sMs = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), sh, sm).getTime();
+    const eMs = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), eh, em).getTime();
+    if (eMs <= sMs) { errEl.textContent = '结束时间须晚于开始时间'; return; }
+    if (name) b.name = name;
+    b.type = selectedPlanEditType;
+    b.startMs = sMs; b.endMs = eMs;
+    planBlocks.sort((a, b) => a.startMs - b.startMs);
+    savePlanBlocks();
+  }
+  renderPlan(); closePlanEditModal(); showToast('计划已更新 ✓');
+}
+
 function addPlanItem() {
   const startVal = document.getElementById('planAddStart').value;
   const endVal   = document.getElementById('planAddEnd').value;
@@ -1230,7 +1359,7 @@ function addPlanItem() {
   if (!name) return;
 
   if (isFixed) {
-    const item = { id: newId(), name };
+    const item = { id: newId(), name, type: selectedPlanAddType };
     if (startVal) item.startTime = startVal;
     if (startVal && endVal) item.endTime = endVal;
     checklist.push(item);
@@ -1243,7 +1372,7 @@ function addPlanItem() {
     const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
     const endMs   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
     if (endMs <= startMs) { showToast('结束时间必须晚于开始时间'); return; }
-    planBlocks.push({ id: Date.now(), name, startMs, endMs });
+    planBlocks.push({ id: Date.now(), name, startMs, endMs, type: selectedPlanAddType });
     planBlocks.sort((a, b) => a.startMs - b.startMs);
     savePlanBlocks();
   }
@@ -1270,12 +1399,12 @@ function allPlanBarsForTimeline() {
     if (item.startTime && item.endTime) {
       const [sh, sm] = item.startTime.split(':').map(Number);
       const [eh, em] = item.endTime.split(':').map(Number);
-      bars.push({ id: 'cl-' + item.id, name: item.name,
+      bars.push({ id: 'cl-' + item.id, name: item.name, type: item.type || 'work',
         startMs: base + (sh * 60 + sm) * 60000,
         endMs:   base + (eh * 60 + em) * 60000 });
     }
   });
-  planBlocks.forEach(b => bars.push({ id: b.id, name: b.name, startMs: b.startMs, endMs: b.endMs }));
+  planBlocks.forEach(b => bars.push({ id: b.id, name: b.name, type: b.type || 'work', startMs: b.startMs, endMs: b.endMs }));
   return bars.sort((a, b) => a.startMs - b.startMs);
 }
 
@@ -1304,10 +1433,10 @@ function renderPlan() {
       const [eh, em] = item.endTime.split(':').map(Number);
       endMs = base + (eh * 60 + em) * 60000;
     }
-    allItems.push({ type: 'fixed', id: item.id, name: item.name, startMs, endMs, checked: !!checks[item.id] });
+    allItems.push({ type: 'fixed', itemType: item.type || 'work', id: item.id, name: item.name, startMs, endMs, checked: !!checks[item.id] });
   });
   planBlocks.forEach(b => {
-    allItems.push({ type: 'once', id: b.id, name: b.name, startMs: b.startMs, endMs: b.endMs, checked: false });
+    allItems.push({ type: 'once', itemType: b.type || 'work', id: b.id, name: b.name, startMs: b.startMs, endMs: b.endMs, checked: false });
   });
 
   // Sort: timed items first by time, then untimed at end
@@ -1336,22 +1465,24 @@ function renderPlan() {
     const isNow     = item.startMs !== null && item.endMs !== null && now >= item.startMs && now <= item.endMs;
     const isDone    = item.checked;
 
+    const itemType = item.itemType || 'work';
     const el = document.createElement('div');
-    el.className = 'plan-item'
+    el.className = 'plan-item plan-type-' + itemType
       + (isNow  ? ' plan-now'     : '')
       + (isPast ? ' plan-past'    : '')
       + (isDone ? ' plan-checked' : '');
     el.dataset.id = item.id;
+    el.onclick = () => openPlanEditModal(item.id, item.type === 'fixed');
 
     if (item.type === 'fixed') {
       const cb = document.createElement('button');
       cb.className = 'plan-item-check';
       cb.textContent = isDone ? '✓' : '';
-      cb.onclick = () => toggleCheck(item.id);
+      cb.onclick = e => { e.stopPropagation(); toggleCheck(item.id); };
       el.appendChild(cb);
     } else {
       const dot = document.createElement('div');
-      dot.className = 'plan-item-dot';
+      dot.className = 'plan-item-dot type-' + itemType;
       el.appendChild(dot);
     }
 
@@ -1372,7 +1503,7 @@ function renderPlan() {
       startBtn.className = 'plan-item-start';
       startBtn.textContent = '▶';
       startBtn.title = '开始计时';
-      startBtn.onclick = () => startChecklistTask(item.id);
+      startBtn.onclick = e => { e.stopPropagation(); startChecklistTask(item.id); };
       el.appendChild(startBtn);
     }
 
@@ -1380,7 +1511,7 @@ function renderPlan() {
     delBtn.className = 'plan-item-del';
     delBtn.textContent = '×';
     delBtn.title = item.type === 'fixed' ? '从固定任务中删除' : '删除';
-    delBtn.onclick = () => item.type === 'fixed' ? deleteChecklistItem(item.id) : deletePlanBlock(item.id);
+    delBtn.onclick = e => { e.stopPropagation(); item.type === 'fixed' ? deleteChecklistItem(item.id) : deletePlanBlock(item.id); };
     el.appendChild(delBtn);
 
     listEl.insertBefore(el, emptyEl);
@@ -2279,7 +2410,7 @@ function renderTimeline() {
       const left   = (bStart - spanStart) / totalDur * 100;
       const width  = Math.max(0.5, (bEnd - bStart) / totalDur * 100);
       const bar = document.createElement('div');
-      bar.className = 'tl-plan-bar' + (now >= b.startMs && now <= b.endMs ? ' plan-now' : '');
+      bar.className = 'tl-plan-bar type-' + (b.type || 'work') + (now >= b.startMs && now <= b.endMs ? ' plan-now' : '');
       bar.style.left  = left + '%';
       bar.style.width = width + '%';
       bar.addEventListener('mouseenter', e => showTlTip(e, '计划：' + b.name, b.startMs, b.endMs));
@@ -3441,6 +3572,10 @@ function startChecklistTask(id) {
 }
 
 function renderChecklist() { renderPlan(); }
+
+document.getElementById('planEditOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closePlanEditModal();
+});
 
 // ════════════════════════════════════════
 // 初始化
