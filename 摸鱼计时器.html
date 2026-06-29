@@ -461,7 +461,8 @@ body {
 .tl-plan-bar:hover { opacity:1; }
 .tl-plan-bar.type-slack { border-color:#c4875a; background:rgba(196,135,90,.10); }
 .tl-plan-bar.type-lunch { border-color:#9a9e9b; background:rgba(154,158,155,.10); }
-.tl-plan-bar.plan-now { opacity:1; border-style:solid; }
+.tl-plan-bar.plan-now  { opacity:1; border-style:solid; }
+.tl-plan-bar.plan-past { opacity:.45; border-style:solid; }
 
 /* ── 今日计划 ── */
 .plan-block {
@@ -2446,7 +2447,9 @@ function renderTimeline() {
       const left   = (bStart - spanStart) / totalDur * 100;
       const width  = Math.max(0.5, (bEnd - bStart) / totalDur * 100);
       const bar = document.createElement('div');
-      bar.className = 'tl-plan-bar type-' + (b.type || 'work') + (now >= b.startMs && now <= b.endMs ? ' plan-now' : '');
+      const _isNow  = now >= b.startMs && now <= b.endMs;
+      const _isPast = now > b.endMs;
+      bar.className = 'tl-plan-bar type-' + (b.type || 'work') + (_isNow ? ' plan-now' : _isPast ? ' plan-past' : '');
       bar.style.left  = left + '%';
       bar.style.width = width + '%';
       bar.addEventListener('mouseenter', e => showTlTip(e, '计划：' + b.name, b.startMs, b.endMs));
