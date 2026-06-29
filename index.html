@@ -517,6 +517,31 @@ body {
   font-family:inherit; transition:background .15s; flex-shrink:0;
 }
 .plan-add-btn:hover { background:#5c7a5e; }
+/* ── 计划到点提示 ── */
+.plan-prompt {
+  display:none; align-items:center; gap:10px;
+  background:#e8ece8; border:1.5px solid #9aab9e; border-radius:13px;
+  padding:11px 14px; box-shadow:0 2px 12px rgba(90,110,90,.10);
+  animation:slideDown .22s ease;
+}
+.plan-prompt.show { display:flex; }
+@keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+.plan-prompt-icon { font-size:17px; flex-shrink:0; }
+.plan-prompt-info { flex:1; min-width:0; }
+.plan-prompt-name { font-size:13px; font-weight:500; color:#4a4f45; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plan-prompt-time { font-size:11px; color:#9aab9e; font-variant-numeric:tabular-nums; margin-top:1px; }
+.plan-prompt-start {
+  background:#7a9b7c; color:#f5f6f2; border:none; border-radius:8px;
+  padding:6px 13px; font-size:12px; font-weight:500; cursor:pointer; font-family:inherit;
+  white-space:nowrap; flex-shrink:0; transition:background .15s;
+}
+.plan-prompt-start:hover { background:#5c7a5e; }
+.plan-prompt-dismiss {
+  background:none; border:1px solid #c8cec4; color:#9a9e9b; border-radius:8px;
+  padding:6px 10px; font-size:12px; cursor:pointer; font-family:inherit;
+  flex-shrink:0; transition:color .15s;
+}
+.plan-prompt-dismiss:hover { color:#6a6e6b; }
 .plan-type-row { display:flex; gap:5px; margin-bottom:8px; }
 .plan-type-btn {
   flex:1; font-size:11px; padding:4px 6px; border-radius:7px;
@@ -868,6 +893,17 @@ body {
     <div class="lunch-banner" id="lunchBanner">
       <span class="lunch-banner-text">🍵 午休中</span>
       <span class="lunch-banner-dur" id="lunchBannerDur">00:00:00</span>
+    </div>
+
+    <!-- 计划到点提示 -->
+    <div class="plan-prompt" id="planPrompt">
+      <div class="plan-prompt-icon">⏰</div>
+      <div class="plan-prompt-info">
+        <div class="plan-prompt-name" id="planPromptName"></div>
+        <div class="plan-prompt-time" id="planPromptTime"></div>
+      </div>
+      <button class="plan-prompt-start" onclick="startPlanPrompt()">▶ 开始</button>
+      <button class="plan-prompt-dismiss" onclick="dismissPlanPrompt()">忽略</button>
     </div>
 
     <div class="active-block" id="activeBlock">
@@ -3056,6 +3092,35 @@ function renderPiP() {
 let _notifiedClockout = false;
 let _notifiedLunch    = false;
 let _notifiedPlanIds  = new Set();
+let _dismissedPlanIds = new Set();
+let _pendingPlanBar   = null;
+
+function showPlanPrompt(b) {
+  _pendingPlanBar = b;
+  document.getElementById('planPromptName').textContent = b.name;
+  document.getElementById('planPromptTime').textContent =
+    fmtHM(b.startMs) + (b.endMs ? '–' + fmtHM(b.endMs) : '');
+  const el = document.getElementById('planPrompt');
+  el.classList.remove('show'); void el.offsetWidth; // restart animation
+  el.classList.add('show');
+}
+
+function dismissPlanPrompt() {
+  if (_pendingPlanBar) _dismissedPlanIds.add(_pendingPlanBar.id);
+  _pendingPlanBar = null;
+  document.getElementById('planPrompt').classList.remove('show');
+}
+
+function startPlanPrompt() {
+  const b = _pendingPlanBar;
+  if (!b) return;
+  if (!clockInTime) { showToast('还没打卡哦'); dismissPlanPrompt(); return; }
+  const type = b.type || 'work';
+  tasks.push({ id: newId(), name: b.name, start: b.startMs, end: null, type, status: 'active' });
+  saveToday(); renderActive(); renderHistory(); renderTimeline(); computeStats();
+  showToast('已开始「' + b.name + '」');
+  dismissPlanPrompt();
+}
 let _lastLunchTaskId  = null;
 
 function requestNotifPermission() {
@@ -3099,7 +3164,10 @@ function checkNotifications() {
     if (_notifiedPlanIds.has(b.id)) return;
     if (now >= b.startMs && now < b.startMs + 60000) {
       _notifiedPlanIds.add(b.id);
-      sendNotif('⏰ 计划提醒', '「' + b.name + '」开始了（' + fmtHM(b.startMs) + '–' + fmtHM(b.endMs) + '）');
+      sendNotif('⏰ 计划提醒', '「' + b.name + '」时间到了');
+      if (!_dismissedPlanIds.has(b.id) && !_pendingPlanBar) {
+        showPlanPrompt(b);
+      }
     }
   });
 }
