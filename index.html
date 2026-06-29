@@ -3094,8 +3094,9 @@ function renderPiP() {
 // ════════════════════════════════════════
 let _notifiedClockout = false;
 let _notifiedLunch    = false;
-let _notifiedPlanIds  = new Set();
-let _dismissedPlanIds = new Set();
+let _notifiedPlanIds   = new Set();
+let _dismissedPlanIds  = new Set();
+let _autoRecordedPlanIds = new Set();
 let _pendingPlanBar   = null;
 
 function showPlanPrompt(b) {
@@ -3175,6 +3176,39 @@ function checkNotifications() {
   });
 }
 
+function checkAutoRecord() {
+  if (!clockInTime) return;
+  const now = Date.now();
+  const autoRecorded = [];
+
+  allPlanBarsForTimeline().forEach(b => {
+    if (now <= b.endMs) return;                        // 还没结束
+    if (_autoRecordedPlanIds.has(b.id)) return;        // 本次会话已处理过
+    _autoRecordedPlanIds.add(b.id);
+
+    // 该时段内已有同类型实际任务 → 跳过
+    const type = b.type || 'work';
+    const overlaps = tasks.some(t =>
+      t.type === type &&
+      t.start < b.endMs &&
+      (t.end !== null ? t.end : now) > b.startMs
+    );
+    if (overlaps) return;
+
+    tasks.push({ id: newId(), name: b.name, start: b.startMs, end: b.endMs, type, status: 'done' });
+    tasks.sort((a, bk) => a.start - bk.start);
+    autoRecorded.push(b.name);
+  });
+
+  if (autoRecorded.length) {
+    saveToday();
+    renderActive(); renderHistory(); renderTimeline(); computeStats();
+    autoRecorded.forEach((name, i) =>
+      setTimeout(() => showToast('已自动记录「' + name + '」'), i * 1600)
+    );
+  }
+}
+
 function tick(){
   if(checkMidnight()) return;
   // 未打卡时持续刷新时间输入框（用户未手动编辑时才自动更新）
@@ -3189,7 +3223,7 @@ function tick(){
   const now=new Date();
   document.getElementById('clockNow').textContent=
     String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
-  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPlan(); renderPiP(); saveToday(); maybeSyncGist(); checkNotifications();
+  updateCountdown(); updateLunchBanner(); computeStats(); renderTimeline(); renderPlan(); renderPiP(); saveToday(); maybeSyncGist(); checkNotifications(); checkAutoRecord();
   // 更新活动任务中的计时（直接改 DOM，不重新渲染）
   document.querySelectorAll('.atr-elapsed').forEach(el=>{
     el.textContent=fmtDuration(Date.now()-parseInt(el.dataset.start));
